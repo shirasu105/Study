@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>問題集管理アプリ</title>
+<style>
+body { font-family: sans-serif; }
+button { margin: 3px; }
+.selected { background-color: lightblue; }
+.correct { background: lightgreen; }
+.half { background: gold; }
+.wrong { background: lightcoral; }
+.hidden { display: none; }
+.row { margin: 5px 0; }
+.small { font-size: 12px; margin-left: 6px; }
+</style>
+</head>
+<body>
+
+<h1>問題集管理</h1>
+
+<!-- 科目追加 -->
+<h2>科目追加</h2>
+<input id="subjectInput" placeholder="科目名">
+<button onclick="addSubject()">追加</button>
+
+<h2>科目一覧</h2>
+<div id="subjectList"></div>
+
+<h2 id="currentSubject">現在選択中：なし</h2>
+
+<!-- 問題集追加 -->
+<div id="workbookSection" class="hidden">
+  <h2>問題集追加</h2>
+  <input id="workbookInput" placeholder="問題集名">
+  <input id="countInput" type="number" placeholder="問題数">
+  <button onclick="addWorkbook()">追加</button>
+
+  <h2>問題集一覧</h2>
+  <div id="workbookList"></div>
+</div>
+
+<!-- 問題画面 -->
+<div id="questionSection" class="hidden">
+  <h2 id="workbookTitle"></h2>
+  <p id="rate">達成率：0%</p>
+  <div id="questions"></div>
+  <button onclick="backToWorkbooks()">戻る</button>
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("studyData")) || {};
+let selectedSubject = null;
+let selectedWorkbook = null;
+
+function saveData() {
+  localStorage.setItem("studyData", JSON.stringify(data));
+}
+
+/* ========= 科目 ========= */
+
+function addSubject() {
+  const name = subjectInput.value.trim();
+  if (!name) return;
+  if (!data[name]) {
+    data[name] = {};
+    saveData();
+    renderSubjects();
+  }
+  subjectInput.value = "";
+}
+
+function selectSubject(name) {
+  selectedSubject = name;
+  currentSubject.textContent = "現在選択中：" + name;
+  workbookSection.classList.remove("hidden");
+  renderSubjects();
+  renderWorkbooks();
+}
+
+function renderSubjects() {
+  subjectList.innerHTML = "";
+  for (let subject in data) {
+
+    const wrapper = document.createElement("div");
+
+    const btn = document.createElement("button");
+    btn.textContent = subject;
+    if (subject === selectedSubject) btn.classList.add("selected");
+    btn.onclick = () => selectSubject(subject);
+
+    const del = document.createElement("button");
+    del.textContent = "削除";
+    del.onclick = () => {
+      if (!confirm("本当に削除しますか？")) return;
+      delete data[subject];
+      if (selectedSubject === subject) {
+        selectedSubject = null;
+        workbookSection.classList.add("hidden");
+        currentSubject.textContent = "現在選択中：なし";
+      }
+      saveData();
+      renderSubjects();
+    };
+
+    wrapper.appendChild(btn);
+    wrapper.appendChild(del);
+    subjectList.appendChild(wrapper);
+  }
+}
+
+/* ========= 問題集 ========= */
+
+function addWorkbook() {
+  if (!selectedSubject) return;
+
+  const name = workbookInput.value.trim();
+  const count = parseInt(countInput.value);
+
+  if (!name || !count) return;
+
+  if (!data[selectedSubject][name]) {
+    data[selectedSubject][name] = {
+      count: count,
+      scores: new Array(count).fill(0).map(()=>[])
+    };
+    saveData();
+    renderWorkbooks();
+  }
+
+  workbookInput.value = "";
+  countInput.value = "";
+}
+
+function renderWorkbooks() {
+  workbookList.innerHTML = "";
+
+  for (let wb in data[selectedSubject]) {
+
+    const wrapper = document.createElement("div");
+
+    const btn = document.createElement("button");
+    btn.textContent = wb;
+    btn.onclick = () => openWorkbook(wb);
+
+    const del = document.createElement("button");
+    del.textContent = "削除";
+    del.onclick = () => {
+      if (!confirm("本当に削除しますか？")) return;
+      delete data[selectedSubject][wb];
+      saveData();
+      renderWorkbooks();
+    };
+
+    wrapper.appendChild(btn);
+    wrapper.appendChild(del);
+    workbookList.appendChild(wrapper);
+  }
+}
+
+/* ========= 問題画面 ========= */
+
+function openWorkbook(name) {
+  selectedWorkbook = name;
+  workbookTitle.textContent = name;
+
+  workbookSection.classList.add("hidden");
+  questionSection.classList.remove("hidden");
+
+  renderQuestions();
+}
+
+function renderQuestions() {
+  questions.innerHTML = "";
+
+  const wb = data[selectedSubject][selectedWorkbook];
+  const scores = wb.scores;
+
+  for (let i = 0; i < wb.count; i++) {
+
+    const div = document.createElement("div");
+    div.className = "row";
+    div.textContent = "問題 " + (i+1) + " ";
+
+    const history = scores[i];
+    const latest = history[history.length - 1];
+
+    ["○","△","×"].forEach(symbol => {
+      const btn = document.createElement("button");
+      btn.textContent = symbol;
+
+      btn.onclick = () => {
+        let value;
+        if (symbol === "○") value = 1;
+        if (symbol === "△") value = 0.5;
+        if (symbol === "×") value = 0;
+
+        scores[i].push(value);   // 履歴追加
+        saveData();
+        renderQuestions();
+      };
+
+      div.appendChild(btn);
+    });
+
+    // 色（最新結果）
+    if (latest === 1) div.classList.add("correct");
+    if (latest === 0.5) div.classList.add("half");
+    if (latest === 0) div.classList.add("wrong");
+
+    // 挑戦回数表示
+    const span = document.createElement("span");
+    span.className = "small";
+    span.textContent = "挑戦回数: " + history.length;
+    div.appendChild(span);
+
+    questions.appendChild(div);
+  }
+
+  updateRate();
+}
+
+function updateRate() {
+  const wb = data[selectedSubject][selectedWorkbook];
+  let total = 0;
+
+  for (let history of wb.scores) {
+    if (history.length > 0) {
+      total += history[history.length - 1]; // 最新のみ
+    }
+  }
+
+  const percent = (total / wb.count) * 100;
+  rate.textContent = "達成率：" + percent.toFixed(1) + "%";
+}
+
+function backToWorkbooks() {
+  questionSection.classList.add("hidden");
+  workbookSection.classList.remove("hidden");
+}
+
+/* ========= 初期表示 ========= */
+
+renderSubjects();
+</script>
+
+</body>
+</html>
