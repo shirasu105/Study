@@ -1,21 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<link rel="stylesheet" href="style.css">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>問題集管理アプリ</title>
-<style>
-body { font-family: sans-serif; }
-button { margin: 3px; }
-.selected { background-color: lightblue; }
-.correct { background: lightgreen; }
-.half { background: gold; }
-.wrong { background: lightcoral; }
-.hidden { display: none; }
-.row { margin: 5px 0; }
-.small { font-size: 12px; margin-left: 6px; }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -46,7 +35,8 @@ button { margin: 3px; }
 <div id="questionSection" class="hidden">
   <h2 id="workbookTitle"></h2>
   <p id="rate">達成率：0%</p>
-  <div id="questions"></div>
+  <p id="progress">取り組み率：0%</p>
+  <div id="questions" class="grid"></div>
   <button onclick="backToWorkbooks()">戻る</button>
 </div>
 
@@ -54,6 +44,7 @@ button { margin: 3px; }
 let data = JSON.parse(localStorage.getItem("studyData")) || {};
 let selectedSubject = null;
 let selectedWorkbook = null;
+let openIndex = null; // 今○△×ボタンを表示している問題番号
 
 function saveData() {
   localStorage.setItem("studyData", JSON.stringify(data));
@@ -164,6 +155,7 @@ function renderWorkbooks() {
 
 function openWorkbook(name) {
   selectedWorkbook = name;
+  openIndex = null;
   workbookTitle.textContent = name;
 
   workbookSection.classList.add("hidden");
@@ -180,43 +172,71 @@ function renderQuestions() {
 
   for (let i = 0; i < wb.count; i++) {
 
-    const div = document.createElement("div");
-    div.className = "row";
-    div.textContent = "問題 " + (i+1) + " ";
-
     const history = scores[i];
     const latest = history[history.length - 1];
 
-    ["○","△","×"].forEach(symbol => {
-      const btn = document.createElement("button");
-      btn.textContent = symbol;
+    const cell = document.createElement("div");
+    cell.className = "cell";
 
-      btn.onclick = () => {
-        let value;
-        if (symbol === "○") value = 1;
-        if (symbol === "△") value = 0.5;
-        if (symbol === "×") value = 0;
+    // 色（最新結果）→ ヒートマップ的に一目で状況がわかる
+    if (latest === 1) cell.classList.add("correct");
+    if (latest === 0.5) cell.classList.add("half");
+    if (latest === 0) cell.classList.add("wrong");
 
-        scores[i].push(value);   // 履歴追加
-        saveData();
+    if (openIndex === i) {
+      // クリックされた問題だけ○△×ボタンを表示する
+      cell.classList.add("open");
+
+      const label = document.createElement("div");
+      label.textContent = (i + 1) + "（挑戦回数: " + history.length + "）";
+      cell.appendChild(label);
+
+      const buttons = document.createElement("div");
+      buttons.className = "buttons";
+
+      ["○","△","×"].forEach(symbol => {
+        const btn = document.createElement("button");
+        btn.textContent = symbol;
+
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          let value;
+          if (symbol === "○") value = 1;
+          if (symbol === "△") value = 0.5;
+          if (symbol === "×") value = 0;
+
+          scores[i].push(value); // 履歴追加
+          saveData();
+          openIndex = null; // 入力したら閉じる
+          renderQuestions();
+        };
+
+        buttons.appendChild(btn);
+      });
+
+      cell.appendChild(buttons);
+
+      cell.onclick = () => {
+        openIndex = null;
         renderQuestions();
       };
 
-      div.appendChild(btn);
-    });
+    } else {
+      // 普段は番号と挑戦回数だけのシンプルな表示
+      cell.textContent = i + 1;
 
-    // 色（最新結果）
-    if (latest === 1) div.classList.add("correct");
-    if (latest === 0.5) div.classList.add("half");
-    if (latest === 0) div.classList.add("wrong");
+      const countSpan = document.createElement("span");
+      countSpan.className = "count";
+      countSpan.textContent = history.length + "回";
+      cell.appendChild(countSpan);
 
-    // 挑戦回数表示
-    const span = document.createElement("span");
-    span.className = "small";
-    span.textContent = "挑戦回数: " + history.length;
-    div.appendChild(span);
+      cell.onclick = () => {
+        openIndex = i;
+        renderQuestions();
+      };
+    }
 
-    questions.appendChild(div);
+    questions.appendChild(cell);
   }
 
   updateRate();
@@ -224,16 +244,23 @@ function renderQuestions() {
 
 function updateRate() {
   const wb = data[selectedSubject][selectedWorkbook];
-  let total = 0;
+  let score = 0;
+  let solved = 0;
 
   for (let history of wb.scores) {
     if (history.length > 0) {
-      total += history[history.length - 1]; // 最新のみ
+      solved++;
+      score += history[history.length - 1]; // 最新のみ
     }
   }
 
-  const percent = (total / wb.count) * 100;
-  rate.textContent = "達成率：" + percent.toFixed(1) + "%";
+  const rate = (score / wb.count) * 100;
+  const progress = (solved / wb.count) * 100;
+
+  document.getElementById("rate").textContent =
+    "達成率：" + rate.toFixed(1) + "%";
+  document.getElementById("progress").textContent =
+    "取り組み率：" + progress.toFixed(1) + "%";
 }
 
 function backToWorkbooks() {
