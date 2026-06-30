@@ -1,64 +1,252 @@
+@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root {
+  --bg: #eef1ec;
+  --paper: #ffffff;
+  --ink: #1f2a24;
+  --ink-soft: #5b665c;
+  --accent: #2f6f4e;
+  --accent-soft: #dfeee5;
+  --correct: #4caf7d;
+  --half: #e8a33d;
+  --wrong: #d8665a;
+  --line: #dde3dd;
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  margin: 10px;
-  background: #f5f5f5;
+  font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  padding: 24px 16px 60px;
+  background: var(--bg);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: -1px -1px;
+  color: var(--ink);
+  max-width: 720px;
+  margin-inline: auto;
 }
 
 h1, h2 {
-  margin: 10px 0;
+  font-family: 'Shippori Mincho', serif;
+  margin: 0 0 6px;
+  color: var(--ink);
+  letter-spacing: 0.01em;
 }
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  padding: 4px 0 18px;
+  border-bottom: 3px solid var(--ink);
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-transform: none;
+  margin-top: 28px;
+}
+
+h2::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+#currentSubject {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: none;
+}
+
+#currentSubject::before { display: none; }
 
 input {
-  padding: 10px;
-  font-size: 16px;
-  margin: 5px 0;
+  font-family: inherit;
+  padding: 12px 14px;
+  font-size: 15px;
+  margin: 6px 0;
   width: 100%;
-  box-sizing: border-box;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+input::placeholder { color: #a7afa3; }
+
 button {
-  padding: 10px 14px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: none;
-  background: #e0e0e0;
+  font-family: 'Noto Sans JP', sans-serif;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+button:hover {
+  border-color: var(--accent);
 }
 
 button:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
+}
+
+/* 追加ボタン（科目追加・問題集追加） */
+#subjectInput + button,
+#countInput + button {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  font-weight: 700;
 }
 
 .selected {
-  background-color: #90caf9;
+  background-color: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
 }
 
-.correct {
-  background: #c8e6c9;
-}
+.correct { background: var(--correct); color: #fff; border-color: var(--correct); }
+.half    { background: var(--half);    color: #3a2c0c; border-color: var(--half); }
+.wrong   { background: var(--wrong);   color: #fff; border-color: var(--wrong); }
 
-.half {
-  background: #fff9c4;
-}
+.hidden { display: none; }
 
-.wrong {
-  background: #ffcdd2;
-}
-
-.hidden {
-  display: none;
-}
-
+/* 科目・問題集の行 */
 .row {
-  background: white;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  background: var(--paper);
+  padding: 14px 16px;
+  margin: 10px 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(31, 42, 36, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.row button:last-child {
+  background: transparent;
+  border-color: transparent;
+  color: #b4504a;
+  font-size: 13px;
 }
 
 .small {
   display: block;
   font-size: 12px;
   margin-top: 6px;
-  color: #666;
+  color: var(--ink-soft);
+}
+
+/* ===== 達成率・取り組み率 ===== */
+#rate, #progress {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 15px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+#rate { color: var(--accent); }
+#progress { color: var(--ink-soft); }
+
+/* ===== 問題グリッド（達成度モザイク） ===== */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--paper);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+
+.cell {
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 2px 6px;
+  text-align: center;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: #f6f8f5;
+  user-select: none;
+  transition: transform .08s ease, box-shadow .12s ease;
+}
+
+.cell:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(31,42,36,0.08);
+}
+
+.cell.correct, .cell.half, .cell.wrong {
+  border-color: transparent;
+}
+
+.cell .count {
+  display: block;
+  font-size: 9px;
+  font-weight: 500;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.cell.open {
+  grid-column: span 2;
+  background: var(--paper);
+  border-color: var(--ink);
+  cursor: default;
+}
+
+.cell .buttons {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.cell .buttons button {
+  font-size: 15px;
+  padding: 6px 10px;
+  font-family: 'Noto Sans JP', sans-serif;
 }
