@@ -434,3 +434,165 @@ button:active {
   margin-top: 0;
   border-top: none;
 }
+
+/* ===== 選択モードボタン ===== */
+#selectModeBtn {
+  font-size: 13px;
+  padding: 8px 14px;
+  flex-shrink: 0;
+}
+#selectModeBtn.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+/* ===== 選択状態のセル ===== */
+.cell-selected {
+  outline: 3px solid var(--ink);
+  outline-offset: -2px;
+  background: var(--accent-soft) !important;
+  color: var(--ink) !important;
+}
+
+/* ===== ラベルドット（セル上の小丸） ===== */
+.label-dots {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.label-dot-sm {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ===== 開いた状態のラベルバッジ ===== */
+.open-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: center;
+}
+.label-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #1f2a24;
+  transition: opacity .15s;
+  user-select: none;
+}
+
+/* ===== ラベル管理リストのドット ===== */
+.label-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ===== パネル内セクションタイトル ===== */
+.panel-section-title {
+  padding: 8px 16px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ===== 単元ヘッダーの単元名：長くても折り返すだけにする ===== */
+.unit-name {
+  font-weight: 700;
+  font-size: 13px;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+/* ===== 単元「全選択」ボタン ===== */
+.unit-sel-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.5);
+  color: #fff;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.unit-sel-btn:hover { background: rgba(255,255,255,0.4); }
+
+/* ===== 下部アクションバー ===== */
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border-top: 1.5px solid var(--line);
+  padding: 12px 16px 20px;
+  box-shadow: 0 -4px 20px rgba(31,42,36,0.08);
+  z-index: 100;
+  max-width: 720px;
+  margin-inline: auto;
+}
+.action-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.action-clear-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  color: #b4504a;
+  border-color: transparent;
+  background: transparent;
+}
+.action-bar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.action-mark {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  color: #fff;
+}
+.action-mark.correct { background: var(--correct); }
+.action-mark.half    { background: var(--half); color: #3a2c0c; }
+.action-mark.wrong   { background: var(--wrong); }
+
+#actionLabelBtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.action-label-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: none;
+  color: #1f2a24;
+  cursor: pointer;
+}
+
+/* アクションバーの分だけ下に余白 */
+body:has(#actionBar:not(.hidden)) #questionSection {
+  padding-bottom: 120px;
+}
