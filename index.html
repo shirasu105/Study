@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>問題集管理アプリ</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -10,7 +10,6 @@
 
 <h1>問題集管理</h1>
 
-<!-- 科目追加 -->
 <h2>科目追加</h2>
 <input id="subjectInput" placeholder="科目名">
 <button onclick="addSubject()">追加</button>
@@ -20,13 +19,11 @@
 
 <h2 id="currentSubject">現在選択中：なし</h2>
 
-<!-- 問題集追加 -->
 <div id="workbookSection" class="hidden">
   <h2>問題集追加</h2>
   <input id="workbookInput" placeholder="問題集名">
   <input id="countInput" type="number" placeholder="問題数">
   <button onclick="addWorkbook()">追加</button>
-
   <h2>問題集一覧</h2>
   <div id="workbookList"></div>
 </div>
@@ -34,11 +31,11 @@
 <!-- 問題画面 -->
 <div id="questionSection" class="hidden">
 
-  <!-- ヘッダー：タイトル＋全体統計 -->
   <div class="q-header">
     <div class="q-header-top">
       <button class="back-btn" onclick="backToWorkbooks()">← 戻る</button>
-      <h2 id="workbookTitle" style="margin:0;"></h2>
+      <h2 id="workbookTitle" style="margin:0; flex:1; min-width:0;"></h2>
+      <button id="selectModeBtn" onclick="toggleSelectMode()">選択</button>
     </div>
     <div class="stats-row">
       <div class="stat-card">
@@ -52,33 +49,66 @@
     </div>
   </div>
 
-  <!-- 単元追加パネル -->
+  <!-- 設定パネル（単元・ラベル） -->
   <div class="unit-add-panel">
     <div class="unit-add-title" onclick="toggleUnitPanel()">
-      <span>＋ 単元を追加・管理</span>
+      <span>⚙ 単元・ラベルを管理</span>
       <span id="unitPanelArrow">▼</span>
     </div>
     <div id="unitPanelBody" class="hidden">
+
+      <!-- 単元追加 -->
+      <div class="panel-section-title">単元の追加</div>
       <div class="unit-add-row">
-        <input id="unitNameInput" placeholder="単元名（例：二次関数）">
-        <input id="unitFromInput" type="number" placeholder="問題番号（開始）" min="1">
-        <input id="unitToInput"   type="number" placeholder="問題番号（終了）" min="1">
+        <input id="unitNameInput" placeholder="単元名">
+        <input id="unitFromInput" type="number" placeholder="開始番号" min="1">
+        <input id="unitToInput"   type="number" placeholder="終了番号" min="1">
         <button onclick="addUnit()">追加</button>
       </div>
       <div id="unitList"></div>
+
+      <!-- ラベル追加 -->
+      <div class="panel-section-title" style="margin-top:12px;">ラベルの追加</div>
+      <div class="unit-add-row">
+        <input id="labelNameInput" placeholder="ラベル名（例：復習が必要）">
+        <select id="labelColorSelect">
+          <option value="#e57373">赤</option>
+          <option value="#ffb74d">オレンジ</option>
+          <option value="#fff176">黄</option>
+          <option value="#81c784">緑</option>
+          <option value="#64b5f6">青</option>
+          <option value="#ba68c8">紫</option>
+        </select>
+        <button onclick="addLabel()">追加</button>
+      </div>
+      <div id="labelList"></div>
     </div>
   </div>
 
-  <!-- 問題一覧（単元ごとにグループ化） -->
   <div id="questions"></div>
+</div>
 
+<!-- 選択モード 下部アクションバー -->
+<div id="actionBar" class="action-bar hidden">
+  <div class="action-bar-info">
+    <span id="selectedCount">0問選択中</span>
+    <button class="action-clear-btn" onclick="clearSelection()">解除</button>
+  </div>
+  <div class="action-bar-buttons">
+    <button class="action-mark correct" onclick="applyMark(1)">○</button>
+    <button class="action-mark half"    onclick="applyMark(0.5)">△</button>
+    <button class="action-mark wrong"   onclick="applyMark(0)">×</button>
+    <div id="actionLabelBtns"></div>
+  </div>
 </div>
 
 <script>
 let data = JSON.parse(localStorage.getItem("studyData")) || {};
-let selectedSubject = null;
+let selectedSubject  = null;
 let selectedWorkbook = null;
-let openIndex = null;
+let openIndex        = null;
+let selectMode       = false;
+let selectedSet      = new Set(); // 選択中の問題インデックス
 
 function saveData() {
   localStorage.setItem("studyData", JSON.stringify(data));
@@ -94,6 +124,12 @@ function addSubject() {
 }
 
 function selectSubject(name) {
+  // 問題画面が開いていたら閉じる
+  questionSection.classList.add("hidden");
+  selectedWorkbook = null;
+  openIndex = null;
+  exitSelectMode();
+
   selectedSubject = name;
   currentSubject.textContent = "現在選択中：" + name;
   workbookSection.classList.remove("hidden");
@@ -117,8 +153,11 @@ function renderSubjects() {
       delete data[subject];
       if (selectedSubject === subject) {
         selectedSubject = null;
+        selectedWorkbook = null;
         workbookSection.classList.add("hidden");
+        questionSection.classList.add("hidden");
         currentSubject.textContent = "現在選択中：なし";
+        exitSelectMode();
       }
       saveData(); renderSubjects();
     };
@@ -131,15 +170,11 @@ function renderSubjects() {
 
 function addWorkbook() {
   if (!selectedSubject) return;
-  const name = workbookInput.value.trim();
+  const name  = workbookInput.value.trim();
   const count = parseInt(countInput.value);
   if (!name || !count) return;
   if (!data[selectedSubject][name]) {
-    data[selectedSubject][name] = {
-      count: count,
-      scores: new Array(count).fill(0).map(() => [])
-      // units フィールドは後から追加するので、ここには書かない
-    };
+    data[selectedSubject][name] = { count, scores: new Array(count).fill(0).map(() => []) };
     saveData(); renderWorkbooks();
   }
   workbookInput.value = ""; countInput.value = "";
@@ -168,48 +203,39 @@ function renderWorkbooks() {
 /* ========= 単元管理 ========= */
 
 function toggleUnitPanel() {
-  const body = document.getElementById("unitPanelBody");
+  const body  = document.getElementById("unitPanelBody");
   const arrow = document.getElementById("unitPanelArrow");
   body.classList.toggle("hidden");
   arrow.textContent = body.classList.contains("hidden") ? "▼" : "▲";
 }
 
-function getWb() {
-  return data[selectedSubject][selectedWorkbook];
-}
+function getWb() { return data[selectedSubject][selectedWorkbook]; }
 
 function addUnit() {
   const name = unitNameInput.value.trim();
   const from = parseInt(unitFromInput.value);
   const to   = parseInt(unitToInput.value);
   const wb   = getWb();
-
   if (!name || isNaN(from) || isNaN(to)) return;
   if (from < 1 || to > wb.count || from > to) {
-    alert("問題番号が範囲外です（1〜" + wb.count + "）");
-    return;
+    alert("問題番号が範囲外です（1〜" + wb.count + "）"); return;
   }
-
   if (!wb.units) wb.units = [];
   wb.units.push({ name, from, to });
   saveData();
   unitNameInput.value = ""; unitFromInput.value = ""; unitToInput.value = "";
-  renderUnitList();
-  renderQuestions();
+  renderUnitList(); renderQuestions();
 }
 
 function deleteUnit(idx) {
-  const wb = getWb();
-  wb.units.splice(idx, 1);
+  const wb = getWb(); wb.units.splice(idx, 1);
   saveData(); renderUnitList(); renderQuestions();
 }
 
 function renderUnitList() {
-  const wb = getWb();
-  unitList.innerHTML = "";
-  if (!wb.units || wb.units.length === 0) {
-    unitList.innerHTML = "<p class='no-unit'>単元はまだありません</p>";
-    return;
+  const wb = getWb(); unitList.innerHTML = "";
+  if (!wb.units || !wb.units.length) {
+    unitList.innerHTML = "<p class='no-unit'>単元はまだありません</p>"; return;
   }
   wb.units.forEach((u, idx) => {
     const row = document.createElement("div");
@@ -222,33 +248,150 @@ function renderUnitList() {
   });
 }
 
-/* ========= 達成率・取り組み率の計算（インデックス配列を受け取る） ========= */
+/* ========= ラベル管理 ========= */
+
+function addLabel() {
+  const name  = labelNameInput.value.trim();
+  const color = labelColorSelect.value;
+  const wb    = getWb();
+  if (!name) return;
+  if (!wb.labelDefs) wb.labelDefs = [];
+  if (wb.labelDefs.find(l => l.name === name)) return;
+  wb.labelDefs.push({ name, color });
+  saveData();
+  labelNameInput.value = "";
+  renderLabelList(); renderQuestions(); renderActionLabelBtns();
+}
+
+function deleteLabel(idx) {
+  const wb = getWb();
+  const name = wb.labelDefs[idx].name;
+  wb.labelDefs.splice(idx, 1);
+  // 各問題のラベルからも削除
+  if (wb.labels) {
+    for (let k in wb.labels) {
+      wb.labels[k] = wb.labels[k].filter(l => l !== name);
+    }
+  }
+  saveData(); renderLabelList(); renderQuestions(); renderActionLabelBtns();
+}
+
+function renderLabelList() {
+  const wb = getWb(); labelList.innerHTML = "";
+  if (!wb.labelDefs || !wb.labelDefs.length) {
+    labelList.innerHTML = "<p class='no-unit'>ラベルはまだありません</p>"; return;
+  }
+  wb.labelDefs.forEach((l, idx) => {
+    const row = document.createElement("div");
+    row.className = "unit-list-row";
+    row.innerHTML =
+      `<span class="label-dot" style="background:${l.color}"></span>` +
+      `<span class="unit-list-name">${l.name}</span>` +
+      `<button onclick="deleteLabel(${idx})">削除</button>`;
+    labelList.appendChild(row);
+  });
+}
+
+/* ========= 選択モード ========= */
+
+function toggleSelectMode() {
+  if (selectMode) exitSelectMode();
+  else enterSelectMode();
+}
+
+function enterSelectMode() {
+  selectMode = true; selectedSet.clear();
+  document.getElementById("selectModeBtn").classList.add("active");
+  document.getElementById("actionBar").classList.remove("hidden");
+  renderActionLabelBtns(); renderQuestions(); updateActionBar();
+}
+
+function exitSelectMode() {
+  selectMode = false; selectedSet.clear();
+  document.getElementById("selectModeBtn")?.classList.remove("active");
+  document.getElementById("actionBar")?.classList.add("hidden");
+  openIndex = null; renderQuestions();
+}
+
+function clearSelection() {
+  selectedSet.clear(); updateActionBar(); renderQuestions();
+}
+
+function updateActionBar() {
+  document.getElementById("selectedCount").textContent =
+    selectedSet.size + "問選択中";
+}
+
+function selectUnit(indices) {
+  // 単元内の問題を全選択（1つでも未選択があれば全選択、全部選択済みなら全解除）
+  const allSelected = indices.every(i => selectedSet.has(i));
+  if (allSelected) indices.forEach(i => selectedSet.delete(i));
+  else indices.forEach(i => selectedSet.add(i));
+  updateActionBar(); renderQuestions();
+}
+
+function applyMark(val) {
+  if (!selectedSet.size) return;
+  const wb = getWb();
+  selectedSet.forEach(i => wb.scores[i].push(val));
+  saveData(); clearSelection(); renderQuestions();
+}
+
+function applyLabel(name) {
+  if (!selectedSet.size) return;
+  const wb = getWb();
+  if (!wb.labels) wb.labels = {};
+  selectedSet.forEach(i => {
+    if (!wb.labels[i]) wb.labels[i] = [];
+    const idx = wb.labels[i].indexOf(name);
+    if (idx === -1) wb.labels[i].push(name);  // 付ける
+    else wb.labels[i].splice(idx, 1);           // 既についてたら外す
+  });
+  saveData(); clearSelection(); renderQuestions();
+}
+
+function renderActionLabelBtns() {
+  if (!selectedWorkbook) return;
+  const wb = getWb();
+  const container = document.getElementById("actionLabelBtns");
+  container.innerHTML = "";
+  (wb.labelDefs || []).forEach(l => {
+    const btn = document.createElement("button");
+    btn.className = "action-label-btn";
+    btn.style.background = l.color;
+    btn.textContent = l.name;
+    btn.onclick = () => applyLabel(l.name);
+    container.appendChild(btn);
+  });
+}
+
+/* ========= 統計 ========= */
 
 function calcStats(indices) {
-  const wb = getWb();
-  let score = 0, solved = 0;
+  const wb = getWb(); let score = 0, solved = 0;
   for (let i of indices) {
     const h = wb.scores[i];
     if (h.length > 0) { solved++; score += h[h.length - 1]; }
   }
   const total = indices.length;
   return {
-    rate:     total ? (score  / total * 100) : 0,
-    progress: total ? (solved / total * 100) : 0,
-    total, solved, score
+    rate:     total ? score  / total * 100 : 0,
+    progress: total ? solved / total * 100 : 0,
+    total, solved
   };
 }
 
-/* ========= 問題グリッドを描画（グループ単位） ========= */
+/* ========= 問題グリッド ========= */
 
 function renderGroup(container, indices) {
-  const wb = getWb();
+  const wb   = getWb();
   const grid = document.createElement("div");
   grid.className = "grid";
 
   for (let i of indices) {
     const history = wb.scores[i];
     const latest  = history[history.length - 1];
+    const labels  = (wb.labels && wb.labels[i]) || [];
 
     const cell = document.createElement("div");
     cell.className = "cell";
@@ -256,7 +399,34 @@ function renderGroup(container, indices) {
     if (latest === 0.5) cell.classList.add("half");
     if (latest === 0)   cell.classList.add("wrong");
 
-    if (openIndex === i) {
+    if (selectMode) {
+      // ===== 選択モード =====
+      if (selectedSet.has(i)) cell.classList.add("cell-selected");
+      cell.textContent = i + 1;
+
+      // ラベルドット
+      if (labels.length) {
+        const dots = document.createElement("div");
+        dots.className = "label-dots";
+        labels.forEach(name => {
+          const def = (wb.labelDefs || []).find(l => l.name === name);
+          if (!def) return;
+          const d = document.createElement("span");
+          d.className = "label-dot-sm";
+          d.style.background = def.color;
+          dots.appendChild(d);
+        });
+        cell.appendChild(dots);
+      }
+
+      cell.onclick = () => {
+        if (selectedSet.has(i)) selectedSet.delete(i);
+        else selectedSet.add(i);
+        updateActionBar(); renderQuestions();
+      };
+
+    } else if (openIndex === i) {
+      // ===== 開いた問題 =====
       cell.classList.add("open");
       const label = document.createElement("div");
       label.textContent = (i + 1) + "（" + history.length + "回）";
@@ -276,13 +446,55 @@ function renderGroup(container, indices) {
         buttons.appendChild(btn);
       });
       cell.appendChild(buttons);
+
+      // ラベルバッジ（開いた状態で表示）
+      if ((wb.labelDefs || []).length) {
+        const lrow = document.createElement("div");
+        lrow.className = "open-labels";
+        (wb.labelDefs || []).forEach(l => {
+          const badge = document.createElement("span");
+          badge.className = "label-badge";
+          badge.style.background = l.color;
+          badge.style.opacity = labels.includes(l.name) ? "1" : "0.25";
+          badge.textContent = l.name;
+          badge.onclick = (e) => {
+            e.stopPropagation();
+            if (!wb.labels) wb.labels = {};
+            if (!wb.labels[i]) wb.labels[i] = [];
+            const idx = wb.labels[i].indexOf(l.name);
+            if (idx === -1) wb.labels[i].push(l.name);
+            else wb.labels[i].splice(idx, 1);
+            saveData(); renderQuestions();
+          };
+          lrow.appendChild(badge);
+        });
+        cell.appendChild(lrow);
+      }
+
       cell.onclick = () => { openIndex = null; renderQuestions(); };
+
     } else {
+      // ===== 通常表示 =====
       cell.textContent = i + 1;
       const countSpan = document.createElement("span");
       countSpan.className = "count";
       countSpan.textContent = history.length + "回";
       cell.appendChild(countSpan);
+
+      if (labels.length) {
+        const dots = document.createElement("div");
+        dots.className = "label-dots";
+        labels.forEach(name => {
+          const def = (wb.labelDefs || []).find(l => l.name === name);
+          if (!def) return;
+          const d = document.createElement("span");
+          d.className = "label-dot-sm";
+          d.style.background = def.color;
+          dots.appendChild(d);
+        });
+        cell.appendChild(dots);
+      }
+
       cell.onclick = () => { openIndex = i; renderQuestions(); };
     }
 
@@ -295,63 +507,69 @@ function renderGroup(container, indices) {
 
 function renderQuestions() {
   questions.innerHTML = "";
-  const wb = getWb();
+  const wb    = getWb();
   const units = wb.units || [];
 
-  // 単元に含まれる問題のインデックスを収集
   const coveredSet = new Set();
   units.forEach(u => {
     for (let i = u.from - 1; i <= u.to - 1; i++) coveredSet.add(i);
   });
 
-  // --- 単元ごとのセクション ---
-  units.forEach((u, uid) => {
-    const indices = [];
-    for (let i = u.from - 1; i <= u.to - 1; i++) indices.push(i);
-    const s = calcStats(indices);
-
+  function makeSection(name, indices, isUncovered) {
+    const s       = calcStats(indices);
     const section = document.createElement("div");
     section.className = "unit-section";
 
     const header = document.createElement("div");
-    header.className = "unit-header";
-    header.innerHTML =
-      `<span class="unit-name">${u.name}</span>` +
-      `<span class="unit-range">問${u.from}〜問${u.to}（${indices.length}問）</span>` +
-      `<span class="unit-stat correct-text">達成 ${s.rate.toFixed(1)}%</span>` +
-      `<span class="unit-stat secondary-text">取組 ${s.progress.toFixed(1)}%</span>`;
+    header.className = "unit-header" + (isUncovered ? " uncovered" : "");
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "unit-name";
+    nameSpan.textContent = name;
+
+    const rangeSpan = document.createElement("span");
+    rangeSpan.className = "unit-range";
+    rangeSpan.textContent = indices.length + "問";
+
+    const rateSpan = document.createElement("span");
+    rateSpan.className = "unit-stat correct-text";
+    rateSpan.textContent = "達成 " + s.rate.toFixed(1) + "%";
+
+    const progSpan = document.createElement("span");
+    progSpan.className = "unit-stat secondary-text";
+    progSpan.textContent = "取組 " + s.progress.toFixed(1) + "%";
+
+    // 選択モードのとき「全選択」ボタンを追加
+    const selBtn = document.createElement("button");
+    selBtn.className = "unit-sel-btn";
+    const allSel = indices.every(i => selectedSet.has(i));
+    selBtn.textContent = allSel ? "全解除" : "全選択";
+    selBtn.onclick = (e) => { e.stopPropagation(); selectUnit(indices); };
+
+    header.appendChild(nameSpan);
+    header.appendChild(rangeSpan);
+    header.appendChild(rateSpan);
+    header.appendChild(progSpan);
+    if (selectMode) header.appendChild(selBtn);
 
     section.appendChild(header);
     renderGroup(section, indices);
     questions.appendChild(section);
+  }
+
+  units.forEach(u => {
+    const indices = [];
+    for (let i = u.from - 1; i <= u.to - 1; i++) indices.push(i);
+    makeSection(u.name, indices, false);
   });
 
-  // --- 単元未設定の問題 ---
   const uncovered = [];
   for (let i = 0; i < wb.count; i++) {
     if (!coveredSet.has(i)) uncovered.push(i);
   }
+  if (uncovered.length) makeSection("単元未設定", uncovered, true);
 
-  if (uncovered.length > 0) {
-    const section = document.createElement("div");
-    section.className = "unit-section";
-
-    const header = document.createElement("div");
-    header.className = "unit-header uncovered";
-    const s = calcStats(uncovered);
-    header.innerHTML =
-      `<span class="unit-name">単元未設定</span>` +
-      `<span class="unit-range">${uncovered.length}問</span>` +
-      `<span class="unit-stat correct-text">達成 ${s.rate.toFixed(1)}%</span>` +
-      `<span class="unit-stat secondary-text">取組 ${s.progress.toFixed(1)}%</span>`;
-
-    section.appendChild(header);
-    renderGroup(section, uncovered);
-    questions.appendChild(section);
-  }
-
-  // --- 全体統計を更新 ---
-  const all = Array.from({ length: wb.count }, (_, i) => i);
+  const all   = Array.from({ length: wb.count }, (_, i) => i);
   const total = calcStats(all);
   document.getElementById("rate").textContent     = total.rate.toFixed(1) + "%";
   document.getElementById("progress").textContent = total.progress.toFixed(1) + "%";
@@ -361,21 +579,17 @@ function renderQuestions() {
 
 function openWorkbook(name) {
   selectedWorkbook = name;
-  openIndex = null;
+  openIndex = null; exitSelectMode();
   workbookTitle.textContent = name;
-
   workbookSection.classList.add("hidden");
   questionSection.classList.remove("hidden");
-
-  // 単元パネルを閉じた状態でリセット
   document.getElementById("unitPanelBody").classList.add("hidden");
   document.getElementById("unitPanelArrow").textContent = "▼";
-
-  renderUnitList();
-  renderQuestions();
+  renderUnitList(); renderLabelList(); renderQuestions();
 }
 
 function backToWorkbooks() {
+  exitSelectMode();
   questionSection.classList.add("hidden");
   workbookSection.classList.remove("hidden");
 }
