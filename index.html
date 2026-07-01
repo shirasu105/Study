@@ -33,18 +33,52 @@
 
 <!-- 問題画面 -->
 <div id="questionSection" class="hidden">
-  <h2 id="workbookTitle"></h2>
-  <p id="rate">達成率：0%</p>
-  <p id="progress">取り組み率：0%</p>
-  <div id="questions" class="grid"></div>
-  <button onclick="backToWorkbooks()">戻る</button>
+
+  <!-- ヘッダー：タイトル＋全体統計 -->
+  <div class="q-header">
+    <div class="q-header-top">
+      <button class="back-btn" onclick="backToWorkbooks()">← 戻る</button>
+      <h2 id="workbookTitle" style="margin:0;"></h2>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-label">全体 達成率</span>
+        <span class="stat-value" id="rate">0%</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">全体 取り組み率</span>
+        <span class="stat-value secondary" id="progress">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 単元追加パネル -->
+  <div class="unit-add-panel">
+    <div class="unit-add-title" onclick="toggleUnitPanel()">
+      <span>＋ 単元を追加・管理</span>
+      <span id="unitPanelArrow">▼</span>
+    </div>
+    <div id="unitPanelBody" class="hidden">
+      <div class="unit-add-row">
+        <input id="unitNameInput" placeholder="単元名（例：二次関数）">
+        <input id="unitFromInput" type="number" placeholder="問題番号（開始）" min="1">
+        <input id="unitToInput"   type="number" placeholder="問題番号（終了）" min="1">
+        <button onclick="addUnit()">追加</button>
+      </div>
+      <div id="unitList"></div>
+    </div>
+  </div>
+
+  <!-- 問題一覧（単元ごとにグループ化） -->
+  <div id="questions"></div>
+
 </div>
 
 <script>
 let data = JSON.parse(localStorage.getItem("studyData")) || {};
 let selectedSubject = null;
 let selectedWorkbook = null;
-let openIndex = null; // 今○△×ボタンを表示している問題番号
+let openIndex = null;
 
 function saveData() {
   localStorage.setItem("studyData", JSON.stringify(data));
@@ -55,11 +89,7 @@ function saveData() {
 function addSubject() {
   const name = subjectInput.value.trim();
   if (!name) return;
-  if (!data[name]) {
-    data[name] = {};
-    saveData();
-    renderSubjects();
-  }
+  if (!data[name]) { data[name] = {}; saveData(); renderSubjects(); }
   subjectInput.value = "";
 }
 
@@ -74,9 +104,7 @@ function selectSubject(name) {
 function renderSubjects() {
   subjectList.innerHTML = "";
   for (let subject in data) {
-
     const wrapper = document.createElement("div");
-
     const btn = document.createElement("button");
     btn.textContent = subject;
     if (subject === selectedSubject) btn.classList.add("selected");
@@ -92,12 +120,9 @@ function renderSubjects() {
         workbookSection.classList.add("hidden");
         currentSubject.textContent = "現在選択中：なし";
       }
-      saveData();
-      renderSubjects();
+      saveData(); renderSubjects();
     };
-
-    wrapper.appendChild(btn);
-    wrapper.appendChild(del);
+    wrapper.appendChild(btn); wrapper.appendChild(del);
     subjectList.appendChild(wrapper);
   }
 }
@@ -106,32 +131,24 @@ function renderSubjects() {
 
 function addWorkbook() {
   if (!selectedSubject) return;
-
   const name = workbookInput.value.trim();
   const count = parseInt(countInput.value);
-
   if (!name || !count) return;
-
   if (!data[selectedSubject][name]) {
     data[selectedSubject][name] = {
       count: count,
-      scores: new Array(count).fill(0).map(()=>[])
+      scores: new Array(count).fill(0).map(() => [])
+      // units フィールドは後から追加するので、ここには書かない
     };
-    saveData();
-    renderWorkbooks();
+    saveData(); renderWorkbooks();
   }
-
-  workbookInput.value = "";
-  countInput.value = "";
+  workbookInput.value = ""; countInput.value = "";
 }
 
 function renderWorkbooks() {
   workbookList.innerHTML = "";
-
   for (let wb in data[selectedSubject]) {
-
     const wrapper = document.createElement("div");
-
     const btn = document.createElement("button");
     btn.textContent = wb;
     btn.onclick = () => openWorkbook(wb);
@@ -141,17 +158,206 @@ function renderWorkbooks() {
     del.onclick = () => {
       if (!confirm("本当に削除しますか？")) return;
       delete data[selectedSubject][wb];
-      saveData();
-      renderWorkbooks();
+      saveData(); renderWorkbooks();
     };
-
-    wrapper.appendChild(btn);
-    wrapper.appendChild(del);
+    wrapper.appendChild(btn); wrapper.appendChild(del);
     workbookList.appendChild(wrapper);
   }
 }
 
-/* ========= 問題画面 ========= */
+/* ========= 単元管理 ========= */
+
+function toggleUnitPanel() {
+  const body = document.getElementById("unitPanelBody");
+  const arrow = document.getElementById("unitPanelArrow");
+  body.classList.toggle("hidden");
+  arrow.textContent = body.classList.contains("hidden") ? "▼" : "▲";
+}
+
+function getWb() {
+  return data[selectedSubject][selectedWorkbook];
+}
+
+function addUnit() {
+  const name = unitNameInput.value.trim();
+  const from = parseInt(unitFromInput.value);
+  const to   = parseInt(unitToInput.value);
+  const wb   = getWb();
+
+  if (!name || isNaN(from) || isNaN(to)) return;
+  if (from < 1 || to > wb.count || from > to) {
+    alert("問題番号が範囲外です（1〜" + wb.count + "）");
+    return;
+  }
+
+  if (!wb.units) wb.units = [];
+  wb.units.push({ name, from, to });
+  saveData();
+  unitNameInput.value = ""; unitFromInput.value = ""; unitToInput.value = "";
+  renderUnitList();
+  renderQuestions();
+}
+
+function deleteUnit(idx) {
+  const wb = getWb();
+  wb.units.splice(idx, 1);
+  saveData(); renderUnitList(); renderQuestions();
+}
+
+function renderUnitList() {
+  const wb = getWb();
+  unitList.innerHTML = "";
+  if (!wb.units || wb.units.length === 0) {
+    unitList.innerHTML = "<p class='no-unit'>単元はまだありません</p>";
+    return;
+  }
+  wb.units.forEach((u, idx) => {
+    const row = document.createElement("div");
+    row.className = "unit-list-row";
+    row.innerHTML =
+      `<span class="unit-list-name">${u.name}</span>` +
+      `<span class="unit-list-range">問${u.from}〜問${u.to}</span>` +
+      `<button onclick="deleteUnit(${idx})">削除</button>`;
+    unitList.appendChild(row);
+  });
+}
+
+/* ========= 達成率・取り組み率の計算（インデックス配列を受け取る） ========= */
+
+function calcStats(indices) {
+  const wb = getWb();
+  let score = 0, solved = 0;
+  for (let i of indices) {
+    const h = wb.scores[i];
+    if (h.length > 0) { solved++; score += h[h.length - 1]; }
+  }
+  const total = indices.length;
+  return {
+    rate:     total ? (score  / total * 100) : 0,
+    progress: total ? (solved / total * 100) : 0,
+    total, solved, score
+  };
+}
+
+/* ========= 問題グリッドを描画（グループ単位） ========= */
+
+function renderGroup(container, indices) {
+  const wb = getWb();
+  const grid = document.createElement("div");
+  grid.className = "grid";
+
+  for (let i of indices) {
+    const history = wb.scores[i];
+    const latest  = history[history.length - 1];
+
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    if (latest === 1)   cell.classList.add("correct");
+    if (latest === 0.5) cell.classList.add("half");
+    if (latest === 0)   cell.classList.add("wrong");
+
+    if (openIndex === i) {
+      cell.classList.add("open");
+      const label = document.createElement("div");
+      label.textContent = (i + 1) + "（" + history.length + "回）";
+      cell.appendChild(label);
+
+      const buttons = document.createElement("div");
+      buttons.className = "buttons";
+      ["○","△","×"].forEach(symbol => {
+        const btn = document.createElement("button");
+        btn.textContent = symbol;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const val = symbol === "○" ? 1 : symbol === "△" ? 0.5 : 0;
+          wb.scores[i].push(val);
+          saveData(); openIndex = null; renderQuestions();
+        };
+        buttons.appendChild(btn);
+      });
+      cell.appendChild(buttons);
+      cell.onclick = () => { openIndex = null; renderQuestions(); };
+    } else {
+      cell.textContent = i + 1;
+      const countSpan = document.createElement("span");
+      countSpan.className = "count";
+      countSpan.textContent = history.length + "回";
+      cell.appendChild(countSpan);
+      cell.onclick = () => { openIndex = i; renderQuestions(); };
+    }
+
+    grid.appendChild(cell);
+  }
+  container.appendChild(grid);
+}
+
+/* ========= 問題画面全体の描画 ========= */
+
+function renderQuestions() {
+  questions.innerHTML = "";
+  const wb = getWb();
+  const units = wb.units || [];
+
+  // 単元に含まれる問題のインデックスを収集
+  const coveredSet = new Set();
+  units.forEach(u => {
+    for (let i = u.from - 1; i <= u.to - 1; i++) coveredSet.add(i);
+  });
+
+  // --- 単元ごとのセクション ---
+  units.forEach((u, uid) => {
+    const indices = [];
+    for (let i = u.from - 1; i <= u.to - 1; i++) indices.push(i);
+    const s = calcStats(indices);
+
+    const section = document.createElement("div");
+    section.className = "unit-section";
+
+    const header = document.createElement("div");
+    header.className = "unit-header";
+    header.innerHTML =
+      `<span class="unit-name">${u.name}</span>` +
+      `<span class="unit-range">問${u.from}〜問${u.to}（${indices.length}問）</span>` +
+      `<span class="unit-stat correct-text">達成 ${s.rate.toFixed(1)}%</span>` +
+      `<span class="unit-stat secondary-text">取組 ${s.progress.toFixed(1)}%</span>`;
+
+    section.appendChild(header);
+    renderGroup(section, indices);
+    questions.appendChild(section);
+  });
+
+  // --- 単元未設定の問題 ---
+  const uncovered = [];
+  for (let i = 0; i < wb.count; i++) {
+    if (!coveredSet.has(i)) uncovered.push(i);
+  }
+
+  if (uncovered.length > 0) {
+    const section = document.createElement("div");
+    section.className = "unit-section";
+
+    const header = document.createElement("div");
+    header.className = "unit-header uncovered";
+    const s = calcStats(uncovered);
+    header.innerHTML =
+      `<span class="unit-name">単元未設定</span>` +
+      `<span class="unit-range">${uncovered.length}問</span>` +
+      `<span class="unit-stat correct-text">達成 ${s.rate.toFixed(1)}%</span>` +
+      `<span class="unit-stat secondary-text">取組 ${s.progress.toFixed(1)}%</span>`;
+
+    section.appendChild(header);
+    renderGroup(section, uncovered);
+    questions.appendChild(section);
+  }
+
+  // --- 全体統計を更新 ---
+  const all = Array.from({ length: wb.count }, (_, i) => i);
+  const total = calcStats(all);
+  document.getElementById("rate").textContent     = total.rate.toFixed(1) + "%";
+  document.getElementById("progress").textContent = total.progress.toFixed(1) + "%";
+}
+
+/* ========= 問題画面を開く ========= */
 
 function openWorkbook(name) {
   selectedWorkbook = name;
@@ -161,106 +367,12 @@ function openWorkbook(name) {
   workbookSection.classList.add("hidden");
   questionSection.classList.remove("hidden");
 
+  // 単元パネルを閉じた状態でリセット
+  document.getElementById("unitPanelBody").classList.add("hidden");
+  document.getElementById("unitPanelArrow").textContent = "▼";
+
+  renderUnitList();
   renderQuestions();
-}
-
-function renderQuestions() {
-  questions.innerHTML = "";
-
-  const wb = data[selectedSubject][selectedWorkbook];
-  const scores = wb.scores;
-
-  for (let i = 0; i < wb.count; i++) {
-
-    const history = scores[i];
-    const latest = history[history.length - 1];
-
-    const cell = document.createElement("div");
-    cell.className = "cell";
-
-    // 色（最新結果）→ ヒートマップ的に一目で状況がわかる
-    if (latest === 1) cell.classList.add("correct");
-    if (latest === 0.5) cell.classList.add("half");
-    if (latest === 0) cell.classList.add("wrong");
-
-    if (openIndex === i) {
-      // クリックされた問題だけ○△×ボタンを表示する
-      cell.classList.add("open");
-
-      const label = document.createElement("div");
-      label.textContent = (i + 1) + "（挑戦回数: " + history.length + "）";
-      cell.appendChild(label);
-
-      const buttons = document.createElement("div");
-      buttons.className = "buttons";
-
-      ["○","△","×"].forEach(symbol => {
-        const btn = document.createElement("button");
-        btn.textContent = symbol;
-
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          let value;
-          if (symbol === "○") value = 1;
-          if (symbol === "△") value = 0.5;
-          if (symbol === "×") value = 0;
-
-          scores[i].push(value); // 履歴追加
-          saveData();
-          openIndex = null; // 入力したら閉じる
-          renderQuestions();
-        };
-
-        buttons.appendChild(btn);
-      });
-
-      cell.appendChild(buttons);
-
-      cell.onclick = () => {
-        openIndex = null;
-        renderQuestions();
-      };
-
-    } else {
-      // 普段は番号と挑戦回数だけのシンプルな表示
-      cell.textContent = i + 1;
-
-      const countSpan = document.createElement("span");
-      countSpan.className = "count";
-      countSpan.textContent = history.length + "回";
-      cell.appendChild(countSpan);
-
-      cell.onclick = () => {
-        openIndex = i;
-        renderQuestions();
-      };
-    }
-
-    questions.appendChild(cell);
-  }
-
-  updateRate();
-}
-
-function updateRate() {
-  const wb = data[selectedSubject][selectedWorkbook];
-  let score = 0;
-  let solved = 0;
-
-  for (let history of wb.scores) {
-    if (history.length > 0) {
-      solved++;
-      score += history[history.length - 1]; // 最新のみ
-    }
-  }
-
-  const rate = (score / wb.count) * 100;
-  const progress = (solved / wb.count) * 100;
-
-  document.getElementById("rate").textContent =
-    "達成率：" + rate.toFixed(1) + "%";
-  document.getElementById("progress").textContent =
-    "取り組み率：" + progress.toFixed(1) + "%";
 }
 
 function backToWorkbooks() {
@@ -269,9 +381,7 @@ function backToWorkbooks() {
 }
 
 /* ========= 初期表示 ========= */
-
 renderSubjects();
 </script>
-
 </body>
 </html>
