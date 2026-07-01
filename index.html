@@ -310,7 +310,8 @@ function exitSelectMode() {
   selectMode = false; selectedSet.clear();
   document.getElementById("selectModeBtn")?.classList.remove("active");
   document.getElementById("actionBar")?.classList.add("hidden");
-  openIndex = null; renderQuestions();
+  openIndex = null;
+  if (selectedWorkbook) renderQuestions();
 }
 
 function clearSelection() {
