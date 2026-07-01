@@ -109,6 +109,8 @@ let selectedWorkbook = null;
 let openIndex        = null;
 let selectMode       = false;
 let selectedSet      = new Set(); // 選択中の問題インデックス
+let isDragging       = false;     // なぞり選択中フラグ
+let dragAdding       = true;      // true=選択追加 / false=選択解除
 
 function saveData() {
   localStorage.setItem("studyData", JSON.stringify(data));
@@ -402,6 +404,7 @@ function renderGroup(container, indices) {
 
     if (selectMode) {
       // ===== 選択モード =====
+      cell.dataset.idx = i; // なぞり選択用
       if (selectedSet.has(i)) cell.classList.add("cell-selected");
       cell.textContent = i + 1;
 
@@ -420,10 +423,23 @@ function renderGroup(container, indices) {
         cell.appendChild(dots);
       }
 
-      cell.onclick = () => {
-        if (selectedSet.has(i)) selectedSet.delete(i);
-        else selectedSet.add(i);
-        updateActionBar(); renderQuestions();
+      // タッチでなぞり選択（touchstart = ドラッグ開始）
+      cell.addEventListener("touchstart", (e) => {
+        isDragging = true;
+        dragAdding = !selectedSet.has(i); // 最初のセルが未選択なら追加モード
+        if (dragAdding) { selectedSet.add(i); cell.classList.add("cell-selected"); }
+        else { selectedSet.delete(i); cell.classList.remove("cell-selected"); }
+        updateActionBar();
+        e.preventDefault();
+      }, { passive: false });
+
+      // マウス用（PC対応）
+      cell.onmousedown = () => {
+        isDragging = true;
+        dragAdding = !selectedSet.has(i);
+        if (dragAdding) { selectedSet.add(i); cell.classList.add("cell-selected"); }
+        else { selectedSet.delete(i); cell.classList.remove("cell-selected"); }
+        updateActionBar();
       };
 
     } else if (openIndex === i) {
@@ -594,6 +610,50 @@ function backToWorkbooks() {
   questionSection.classList.add("hidden");
   workbookSection.classList.remove("hidden");
 }
+
+/* ========= なぞり選択：グローバルリスナー ========= */
+
+// セル要素を座標から取得（子要素からでも親.cellを返す）
+function cellFromPoint(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el?.closest("[data-idx]") || null;
+}
+
+// ドラッグ中にセルに触れたら選択状態を更新（DOMのみ、再描画なし）
+function dragOver(cellEl) {
+  const idx = parseInt(cellEl.dataset.idx);
+  if (dragAdding && !selectedSet.has(idx)) {
+    selectedSet.add(idx);
+    cellEl.classList.add("cell-selected");
+    updateActionBar();
+  } else if (!dragAdding && selectedSet.has(idx)) {
+    selectedSet.delete(idx);
+    cellEl.classList.remove("cell-selected");
+    updateActionBar();
+  }
+}
+
+document.addEventListener("touchmove", (e) => {
+  if (!isDragging || !selectMode) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  const cellEl = cellFromPoint(t.clientX, t.clientY);
+  if (cellEl) dragOver(cellEl);
+}, { passive: false });
+
+document.addEventListener("touchend", () => {
+  if (isDragging) { isDragging = false; }
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!isDragging || !selectMode) return;
+  const cellEl = cellFromPoint(e.clientX, e.clientY);
+  if (cellEl) dragOver(cellEl);
+});
+
+document.addEventListener("mouseup", () => {
+  if (isDragging) { isDragging = false; }
+});
 
 /* ========= 初期表示 ========= */
 renderSubjects();
